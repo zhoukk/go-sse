@@ -39,7 +39,7 @@ func NewSSE() *GoSSE {
 	return sse
 }
 
-func (sse *GoSSE) Push(msg string) {
+func (sse *GoSSE) Publish(msg string) {
 	sse.messages <- msg
 }
 
