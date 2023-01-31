@@ -66,7 +66,7 @@ func (sse *GoSSE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-notify:
 			sse.remove <- message
-			break
+			return
 		case msg := <-message:
 			fmt.Fprintf(w, "data: %s\n\n", msg)
 			f.Flush()
