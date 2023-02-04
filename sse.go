@@ -68,7 +68,10 @@ func (sse *GoSSE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sse.remove <- message
 			return
 		case msg := <-message:
-			fmt.Fprintf(w, "data: %s\n\n", msg)
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", msg); err != nil {
+				sse.remove <- message
+				return
+			}
 			f.Flush()
 		}
 	}
