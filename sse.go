@@ -17,7 +17,7 @@ func NewSSE() *GoSSE {
 		make(map[chan string]bool),
 		make(chan (chan string)),
 		make(chan (chan string)),
-		make(chan string, 1),
+		make(chan string),
 	}
 
 	go func() {
@@ -50,29 +50,28 @@ func (sse *GoSSE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message := make(chan string, 2)
+	message := make(chan string)
 
 	sse.add <- message
 
+	notify := w.(http.CloseNotifier).CloseNotify()
+	go func() {
+		<-notify
+		sse.remove <- message
+	}()
+
 	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache, no-transform")
+	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	notify := w.(http.CloseNotifier).CloseNotify()
-
 	for {
-		select {
-		case <-notify:
-			sse.remove <- message
-			return
-		case msg := <-message:
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", msg); err != nil {
-				sse.remove <- message
-				return
-			}
-			f.Flush()
+		msg, open := <-message
+		if !open {
+			break
 		}
+		fmt.Fprintf(w, "data: %s\n\n", msg)
+		f.Flush()
 	}
 }
