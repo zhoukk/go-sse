@@ -8,18 +8,20 @@ import (
 )
 
 type GoSSE struct {
-	clients  map[chan string]bool
-	add      chan chan string
-	remove   chan chan string
-	messages chan string
+	clients    map[chan string]bool
+	add        chan chan string
+	remove     chan chan string
+	messages   chan string
+	timeout_ms time.Duration
 }
 
-func NewSSE() *GoSSE {
+func NewSSE(timeout_ms time.Duration) *GoSSE {
 	sse := &GoSSE{
 		make(map[chan string]bool),
 		make(chan (chan string)),
 		make(chan (chan string)),
 		make(chan string),
+		timeout_ms,
 	}
 
 	go func() {
@@ -32,7 +34,11 @@ func NewSSE() *GoSSE {
 				close(c)
 			case msg := <-sse.messages:
 				for c := range sse.clients {
-					c <- msg
+					select {
+					case c <- msg:
+					case <-time.After(timeout_ms * time.Millisecond):
+						continue
+					}
 				}
 			}
 		}
@@ -41,11 +47,11 @@ func NewSSE() *GoSSE {
 	return sse
 }
 
-func (sse *GoSSE) Publish(msg string, ms time.Duration) error {
+func (sse *GoSSE) Publish(msg string) error {
 	select {
 	case sse.messages <- msg:
 		return nil
-	case <-time.After(ms * time.Millisecond):
+	case <-time.After(sse.timeout_ms * time.Millisecond):
 		return errors.New("timetou")
 	}
 }
