@@ -1,8 +1,10 @@
 package gosse
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 type GoSSE struct {
@@ -39,8 +41,13 @@ func NewSSE() *GoSSE {
 	return sse
 }
 
-func (sse *GoSSE) Publish(msg string) {
-	sse.messages <- msg
+func (sse *GoSSE) Publish(msg string, ms time.Duration) error {
+	select {
+	case sse.messages <- msg:
+		return nil
+	case <-time.After(ms * time.Millisecond):
+		return errors.New("timetou")
+	}
 }
 
 func (sse *GoSSE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,9 +61,8 @@ func (sse *GoSSE) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	sse.add <- message
 
-	notify := w.(http.CloseNotifier).CloseNotify()
 	go func() {
-		<-notify
+		<-r.Context().Done()
 		sse.remove <- message
 	}()
 
